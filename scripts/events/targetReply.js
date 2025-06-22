@@ -1,34 +1,41 @@
+const fs = require("fs-extra");
+const path = require("path");
+
 module.exports = {
   config: {
     name: "targetReply",
-    eventType: ["message"],
-    category: "auto"
+    version: "1.0",
+    author: "Aryan+ChatGPT",
+    description: "Auto reply when target sends a message",
+    category: "events"
   },
 
-  onStart: async function () {},
+  onMessage: async function ({ event, message, usersData, threadsData }) {
+    const { senderID, threadID } = event;
+    const filePath = path.join(__dirname, "..", "commands", "cache", "target.json");
 
-  onEvent: async function ({ event, threadsData, message, usersData }) {
-    const { threadID, senderID } = event;
-    const targets = await threadsData.get(threadID, "data.targetUsers", {});
-    const userTarget = targets?.[senderID];
-
+    const targets = fs.readJsonSync(filePath, { throws: false }) || {};
+    const userTarget = targets?.[senderID.toString()];
     if (!userTarget) return;
 
+    const cooldown = 3000; // 3 seconds
     const now = Date.now();
-    const cooldown = 3000;
-
     if (now - (userTarget.lastReplied || 0) < cooldown) return;
 
-    userTarget.lastReplied = now;
-    await threadsData.set(threadID, targets, "data.targetUsers");
-
-    const userName = await usersData.getName(senderID);
-    const boxName = await threadsData.get(threadID, "threadInfo.threadName");
+    // Replace placeholders
+    const user = await usersData.get(senderID);
+    const thread = await threadsData.get(threadID);
+    const boxName = thread.threadName || "this group";
+    const userName = user.name || "user";
 
     const replyMsg = userTarget.reply
       .replace(/{userName}/g, userName)
-      .replace(/{boxName}/g, boxName || "this group");
+      .replace(/{boxName}/g, boxName);
 
     message.reply(replyMsg);
+
+    // Update timestamp
+    userTarget.lastReplied = now;
+    fs.writeJsonSync(filePath, targets, { spaces: 2 });
   }
 };
