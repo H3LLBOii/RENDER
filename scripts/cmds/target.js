@@ -6,7 +6,7 @@ module.exports = {
     countDown: 5,
     role: 1,
     description: {
-      en: "Auto-reply to specific UIDs with custom replies (supports placeholders)"
+      en: "Auto-reply to messages from specific UIDs with custom replies and cooldowns"
     },
     category: "fun",
     guide: {
@@ -58,12 +58,13 @@ module.exports = {
 
   onChat: async function ({ message, event, threadsData, usersData, api }) {
     const { senderID, threadID } = event;
+
     const targetUsers = await threadsData.get(threadID, "data.targetUsers", {});
     const user = targetUsers[senderID];
     if (!user) return;
 
     const now = Date.now();
-    const cooldown = 3000; // 3 seconds
+    const cooldown = 3000;
 
     if (now - (user.lastReplied || 0) < cooldown) return;
 
@@ -74,9 +75,9 @@ module.exports = {
     const threadInfo = await api.getThreadInfo(threadID);
 
     const finalReply = user.reply
-      .replace(/{userName}/g, userInfo.name || "User")
-      .replace(/{userNameTag}/g, `@${userInfo.name}`)
-      .replace(/{boxName}/g, threadInfo.threadName || "Group");
+      .replace(/{userName}/g, userInfo?.name || "User")
+      .replace(/{userNameTag}/g, `@${userInfo?.name || "User"}`)
+      .replace(/{boxName}/g, threadInfo?.threadName || "this group");
 
     return message.reply(finalReply);
   }
