@@ -15,7 +15,7 @@ module.exports = {
     name: "autorespond",
     version: "1.1",
     author: "OpenAI",
-    role: 1,
+    role: 2,
     description: {
       en: "Set auto replies for specific words"
     },
