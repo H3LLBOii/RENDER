@@ -1,7 +1,8 @@
 module.exports = {
   config: {
     name: "targetReply",
-    eventType: ["message"]
+    eventType: ["message"],
+    category: "auto"
   },
 
   onStart: async function () {},
@@ -14,7 +15,7 @@ module.exports = {
     if (!userTarget) return;
 
     const now = Date.now();
-    const cooldown = 3000; // 3 seconds
+    const cooldown = 3000;
 
     if (now - (userTarget.lastReplied || 0) < cooldown) return;
 
