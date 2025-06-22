@@ -1,80 +1,84 @@
+const cooldownMap = new Map();
+
 module.exports = {
   config: {
     name: "target",
-    version: "2.1",
+    aliases: [],
+    version: "1.0",
     author: "ChatGPT",
     countDown: 5,
-    role: 1,
-    description: {
-      en: "Auto reply to a specific UID"
-    },
-    category: "fun",
+    role: 2,
+    shortDescription: "Auto-reply to selected UID",
+    longDescription: "Set custom replies for specific user IDs in group chats",
+    category: "group",
     guide: {
       en: "{pn} <uid> | <reply>\n{pn} remove <uid>\n{pn} list"
     }
   },
 
-  onStart: async function ({ message, event, args, threadsData }) {
+  onStart: async function ({ args, threadsData, message, event }) {
     const { threadID } = event;
-    const subCommand = args[0];
-
     let targetUsers = await threadsData.get(threadID, "data.targetUsers", {});
 
-    if (subCommand === "list") {
+    const command = args[0];
+
+    if (command === "list") {
       if (Object.keys(targetUsers).length === 0)
         return message.reply("📭 No targets set.");
       const list = Object.entries(targetUsers)
-        .map(([uid, data], i) => `${i + 1}. UID: ${uid} | Reply: ${data.reply}`)
+        .map(([uid, data], i) => `${i + 1}. UID: ${uid} → "${data.reply}"`)
         .join("\n");
-      return message.reply(`🎯 Current targets:\n${list}`);
+      return message.reply("🎯 Current Targets:\n" + list);
     }
 
-    if (subCommand === "remove") {
+    if (command === "remove") {
       const uid = args[1];
-      if (!uid || !targetUsers[uid])
-        return message.reply("❌ UID not found.");
+      if (!targetUsers[uid]) return message.reply("❌ UID not found.");
       delete targetUsers[uid];
       await threadsData.set(threadID, targetUsers, "data.targetUsers");
       return message.reply(`✅ Removed target UID: ${uid}`);
     }
 
-    const input = args.join(" ").split("|").map(e => e.trim());
-    if (input.length < 2)
-      return message.reply("❌ Use format:\n/target <uid> | <reply>");
+    const input = args.join(" ").split("|").map(i => i.trim());
+    if (input.length < 2) return message.reply("❌ Use format:\n/target <uid> | <reply>");
 
-    const [uid, reply] = input;
-    if (isNaN(uid)) return message.reply("❌ UID must be numeric.");
+    const uid = input[0];
+    const reply = input.slice(1).join(" ");
+    if (isNaN(uid)) return message.reply("❌ UID must be a number.");
 
-    targetUsers[uid] = { reply, lastReplied: 0 };
+    targetUsers[uid] = {
+      reply,
+      lastUsed: 0
+    };
+
     await threadsData.set(threadID, targetUsers, "data.targetUsers");
-
-    return message.reply(`✅ Set target for UID: ${uid}\n🗨️ Message: ${reply}`);
+    return message.reply(`✅ Target set for UID ${uid}.\n💬 Reply: "${reply}"`);
   },
 
-  onMessage: async function ({ event, message, api, threadsData, usersData }) {
+  onChat: async function ({ event, threadsData, usersData, message }) {
     const { senderID, threadID } = event;
 
+    if (!event.isGroup) return;
+
     const targetUsers = await threadsData.get(threadID, "data.targetUsers", {});
-    const userTarget = targetUsers[senderID];
-    if (!userTarget) return;
+    if (!targetUsers[senderID]) return;
 
+    const user = targetUsers[senderID];
     const now = Date.now();
-    const cooldown = 3000;
+    const lastUsed = cooldownMap.get(`${threadID}_${senderID}`) || 0;
 
-    if (now - (userTarget.lastReplied || 0) < cooldown) return;
+    if (now - lastUsed < 3000) return; // 3s cooldown
+    cooldownMap.set(`${threadID}_${senderID}`, now);
 
-    userTarget.lastReplied = now;
-    await threadsData.set(threadID, targetUsers, "data.targetUsers");
+    const userData = await usersData.get(senderID);
+    const threadData = await threadsData.get(threadID);
+    const userName = userData.name || "User";
+    const boxName = threadData.threadName || "this group";
 
-    const userInfo = await usersData.get(senderID);
-    const threadInfo = await api.getThreadInfo(threadID);
+    const formattedReply = user.reply
+      .replace(/{userName}/g, userName)
+      .replace(/{boxName}/g, boxName);
 
-    const finalMessage = userTarget.reply
-      .replace(/{userName}/g, userInfo?.name || "User")
-      .replace(/{userNameTag}/g, `@${userInfo?.name || "User"}`)
-      .replace(/{boxName}/g, threadInfo?.threadName || "this group");
-
-    console.log(`[REPLYING] To ${senderID} with: ${finalMessage}`);
-    return message.reply(finalMessage);
+    return message.reply(formattedReply);
   }
 };
