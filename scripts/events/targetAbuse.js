@@ -3,21 +3,18 @@ module.exports = {
     name: "targetAbuse",
     version: "1.0",
     author: "ChatGPT",
-    description: "Auto abuse specific UID in group",
+    description: "Reply to a specific UID when they message in group",
     category: "events"
   },
 
-  // 👇 Replace with your target UID
-  targetUID: "61573965297895",
-
-  run: async function ({ event, api }) {
+  onStart: async function ({ event, api }) {
     const { senderID, threadID, isGroup } = event;
 
-    // Only in group chat
-    if (!isGroup) return;
+    // ✅ Replace with your target UID
+    const targetUID = "61573965297895";
 
-    // If the target user sends a message
-    if (senderID === this.targetUID) {
+    // ✅ Reply only when message is from target in group chat
+    if (isGroup && senderID === targetUID) {
       return api.sendMessage("bhadwe", threadID);
     }
   }
