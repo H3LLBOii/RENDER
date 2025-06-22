@@ -56,7 +56,8 @@ module.exports = {
     return message.reply(`✅ Target set for UID ${uid}.\n🗨️ Reply: "${reply}"`);
   },
 
-  onChat: async function ({ message, event, threadsData, usersData, api }) {
+  // Instead of onChat, use message event listener
+  onMessage: async function ({ event, message, threadsData, usersData, api }) {
     const { senderID, threadID } = event;
 
     const targetUsers = await threadsData.get(threadID, "data.targetUsers", {});
