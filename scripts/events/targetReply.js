@@ -1,41 +1,53 @@
-const fs = require("fs-extra");
-const path = require("path");
-
 module.exports = {
   config: {
     name: "targetReply",
     version: "1.0",
-    author: "Aryan+ChatGPT",
-    description: "Auto reply when target sends a message",
+    author: "ChatGPT",
+    description: "Send message to a specific user in group with placeholders",
     category: "events"
   },
 
-  onMessage: async function ({ event, message, usersData, threadsData }) {
-    const { senderID, threadID } = event;
-    const filePath = path.join(__dirname, "..", "commands", "cache", "target.json");
+  onStart: async function ({ event, api, threadsData, usersData }) {
+    try {
+      const { body, threadID, senderID } = event;
 
-    const targets = fs.readJsonSync(filePath, { throws: false }) || {};
-    const userTarget = targets?.[senderID.toString()];
-    if (!userTarget) return;
+      if (!body || !body.startsWith(".target")) return;
 
-    const cooldown = 3000; // 3 seconds
-    const now = Date.now();
-    if (now - (userTarget.lastReplied || 0) < cooldown) return;
+      const args = body.split(" ");
+      const targetID = args[1];
+      const splitIndex = body.indexOf("|");
+      if (splitIndex === -1) return;
 
-    // Replace placeholders
-    const user = await usersData.get(senderID);
-    const thread = await threadsData.get(threadID);
-    const boxName = thread.threadName || "this group";
-    const userName = user.name || "user";
+      const messageText = body.slice(splitIndex + 1).trim();
+      if (!targetID || !messageText) return;
 
-    const replyMsg = userTarget.reply
-      .replace(/{userName}/g, userName)
-      .replace(/{boxName}/g, boxName);
+      const userData = await usersData.get(targetID);
+      const threadData = await threadsData.get(threadID);
 
-    message.reply(replyMsg);
+      const placeholders = {
+        "{userName}": userData?.name || "User",
+        "{userNameTag}": `@${userData?.name || "user"}`,
+        "{boxName}": threadData?.threadInfo?.threadName || "this group",
+        "{multiple}": threadData?.participantIDs.length > 2 ? "you all" : "you",
+        "{session}": getSession()
+      };
 
-    // Update timestamp
-    userTarget.lastReplied = now;
-    fs.writeJsonSync(filePath, targets, { spaces: 2 });
+      let finalMessage = messageText;
+      for (const key in placeholders) {
+        finalMessage = finalMessage.replace(new RegExp(key, "g"), placeholders[key]);
+      }
+
+      api.sendMessage(finalMessage, threadID, undefined, undefined, true);
+    } catch (err) {
+      console.error("targetReply Error:", err);
+    }
   }
 };
+
+// Optional: Time-based greeting
+function getSession() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "morning";
+  if (hour < 18) return "afternoon";
+  return "evening";
+}
