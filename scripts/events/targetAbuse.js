@@ -7,18 +7,18 @@ module.exports = {
     category: "events"
   },
 
-  // 👇 Replace this with the UID of the person to abuse
+  // 👇 Replace with your target UID
   targetUID: "61573965297895",
 
-  onStart: async function ({ event, api }) {
+  run: async function ({ event, api }) {
     const { senderID, threadID, isGroup } = event;
 
-    // Only respond in group chats
+    // Only in group chat
     if (!isGroup) return;
 
-    // If the target user sends any message, reply “bhadwe”
+    // If the target user sends a message
     if (senderID === this.targetUID) {
-      api.sendMessage("bhadwe", threadID);
+      return api.sendMessage("bhadwe", threadID);
     }
   }
 };
