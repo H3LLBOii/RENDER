@@ -1,45 +1,47 @@
 module.exports = {
 	config: {
 		name: "target",
-		version: "2.0",
+		version: "2.2",
 		author: "ChatGPT",
 		countDown: 5,
-		role: 1,
+		role: 2, // Only bot admins
 		description: {
-			en: "Auto-reply to messages from specific UIDs with custom replies and cooldowns"
+			en: "Auto-reply to target UID messages with custom replies"
 		},
 		category: "fun",
 		guide: {
-			en: "{pn} <uid> | <reply>: set target\n{pn} remove <uid>: remove target\n{pn} list: list all targets"
+			en: "{pn} <uid> | <reply>: set target\n{pn} remove <uid>: remove target\n{pn} list: show all targets"
 		}
 	},
 
 	onStart: async function ({ message, event, args, threadsData }) {
 		const { threadID } = event;
-		const subCommand = args[0];
-
 		let targetUsers = await threadsData.get(threadID, "data.targetUsers", {});
 
-		if (subCommand === "list") {
-			if (Object.keys(targetUsers).length === 0) return message.reply("📭 No targets set.");
-			let list = Object.entries(targetUsers).map(([uid, data], i) => `${i + 1}. UID: ${uid} | Reply: ${data.reply}`).join("\n");
-			return message.reply(`🎯 Current targets:\n${list}`);
+		if (args[0] === "list") {
+			if (Object.keys(targetUsers).length === 0)
+				return message.reply("📭 No target UIDs set.");
+			let msg = "🎯 Target List:\n";
+			for (const [uid, data] of Object.entries(targetUsers)) {
+				msg += `• UID: ${uid} | Reply: "${data.reply}"\n`;
+			}
+			return message.reply(msg.trim());
 		}
 
-		if (subCommand === "remove") {
+		if (args[0] === "remove") {
 			const uidToRemove = args[1];
-			if (!targetUsers[uidToRemove]) return message.reply("❌ UID not found in target list.");
+			if (!uidToRemove || !targetUsers[uidToRemove])
+				return message.reply("❌ UID not found in list.");
 			delete targetUsers[uidToRemove];
 			await threadsData.set(threadID, targetUsers, "data.targetUsers");
-			return message.reply(`✅ Removed target UID: ${uidToRemove}`);
+			return message.reply(`✅ Removed UID ${uidToRemove} from target list.`);
 		}
 
-		// Adding a new target
-		const rawInput = args.join(" ").split("|").map(s => s.trim());
-		if (rawInput.length < 2) return message.reply("❌ Invalid format. Use:\n/target <uid> | <reply>");
-		
-		const uid = rawInput[0];
-		const reply = rawInput[1];
+		const input = args.join(" ").split("|").map(s => s.trim());
+		if (input.length < 2) return message.reply("❌ Invalid format.\nUse: /target <uid> | <reply>");
+
+		const uid = input[0];
+		const reply = input.slice(1).join("|");
 
 		if (isNaN(uid)) return message.reply("❌ UID must be a number.");
 
@@ -49,27 +51,24 @@ module.exports = {
 		};
 
 		await threadsData.set(threadID, targetUsers, "data.targetUsers");
-		return message.reply(`✅ Target set for UID ${uid}.\n🗨️ Reply: "${reply}"`);
+		return message.reply(`✅ Set target for UID: ${uid}\n🗨️ Reply: "${reply}"`);
 	},
 
 	onChat: async function ({ message, event, threadsData }) {
-		const { senderID, threadID, messageID } = event;
+		const { senderID, threadID } = event;
 		const targetUsers = await threadsData.get(threadID, "data.targetUsers", {});
 		const user = targetUsers[senderID];
 
 		if (!user) return;
 
 		const now = Date.now();
-		const cooldown = 15 * 1000; // 15 seconds
+		const cooldown = 3 * 1000; // ✅ 3 seconds cooldown
 
 		if (now - (user.lastReplied || 0) < cooldown) return;
 
 		user.lastReplied = now;
 		await threadsData.set(threadID, targetUsers, "data.targetUsers");
 
-		message.reply({
-			body: user.reply,
-			messageID
-		});
+		return message.reply(user.reply);
 	}
 };
